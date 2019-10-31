@@ -26,7 +26,7 @@ from collections import OrderedDict
 
 from flask import Flask, jsonify, Response, request
 from werkzeug.utils import secure_filename
-from prometheus_client import generate_latest, Summary
+from prometheus_client import generate_latest, Summary, Counter
 
 from bentoml import config
 from bentoml.utils.usage_stats import track_server
@@ -192,6 +192,7 @@ def bento_service_api_wrapper(api, service_name, service_version):
     """
     summary_name = str(service_name) + "_" + str(api.name)
     request_metric_time = Summary(summary_name, summary_name + " request latency")
+    counter = Counter(name=summary_name + "_counter", documentation='request count', labelnames=['http_response_code'])
 
     def log_image(req, request_id):
         img_prefix = 'image/'
@@ -256,6 +257,9 @@ def bento_service_api_wrapper(api, service_name, service_version):
             prediction_logger.info(request_log)
 
             response.headers["request_id"] = request_id
+
+            counter.labels(response.status_code).inc()
+
             return response
 
     return wrapper
