@@ -23,6 +23,7 @@ import argparse
 from flask import Response, make_response, jsonify
 
 from bentoml.handlers.base_handlers import BentoHandler, get_output_str
+from bentoml.handlers.bad_request import BadRequest
 
 
 class JsonHandler(BentoHandler):
@@ -43,9 +44,12 @@ class JsonHandler(BentoHandler):
                 400,
             )
 
-        result = func(parsed_json)
-        result = get_output_str(result, request.headers.get("output", "json"))
-        return Response(response=result, status=200, mimetype="application/json")
+        try:
+            result = func(parsed_json)
+            result = get_output_str(result, request.headers.get("output", "json"))
+            return Response(response=result, status=200, mimetype="application/json")
+        except BadRequest as ex:
+            return Response(response=str(ex), status=400, mimetype="application/json")
 
     def handle_cli(self, args, func):
         parser = argparse.ArgumentParser()
