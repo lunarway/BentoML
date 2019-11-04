@@ -73,23 +73,27 @@ ENTRYPOINT [ "/bin/bash", "-c" ]
 
 EXPOSE 5000
 
-RUN set -x \\
-     && apt-get update \\
-     && apt-get install --no-install-recommends --no-install-suggests -y libpq-dev build-essential \\
+RUN set -x \
+     && apt-get update \
+     && apt-get install --no-install-recommends --no-install-suggests -y libpq-dev build-essential \
      && rm -rf /var/lib/apt/lists/*
 
 # update conda, pre-install BentoML base dependencies
-RUN conda update conda -y \\
-      && conda install pip numpy scipy \\
+RUN conda update conda -y \
+      && conda install pip numpy scipy \
       && pip install gunicorn six
+
+
+# update conda base env and pip dependencies
+WORKDIR /bento
+ADD ./requirements.txt /bento/requirements.txt
+ADD ./environment.yml /bento/environment.yml
+
+RUN conda env update -n base -f /bento/environment.yml
+RUN pip install -r /bento/requirements.txt
 
 # copy over model files
 COPY . /bento
-WORKDIR /bento
-
-# update conda base env
-RUN conda env update -n base -f /bento/environment.yml
-RUN pip install -r /bento/requirements.txt
 
  # Install additional pip dependencies inside bundled_pip_dependencies dir
 RUN if [ -f /bento/bentoml_init.sh ]; then /bin/bash -c /bento/bentoml_init.sh; fi
