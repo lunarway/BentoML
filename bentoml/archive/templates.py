@@ -101,6 +101,9 @@ RUN if [ -f /bento/bentoml_init.sh ]; then /bin/bash -c /bento/bentoml_init.sh; 
 # run user defined setup script
 RUN if [ -f /bento/setup.sh ]; then /bin/bash -c /bento/setup.sh; fi
 
+RUN mkdir /bento/multiproc-tmp
+ENV prometheus_multiproc_dir=/bento/multiproc-tmp
+
 # Run Gunicorn server with path to module.
 CMD ["bentoml serve-gunicorn /bento"]
 """  # noqa: E501

@@ -16,6 +16,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
 
 from gunicorn.app.base import BaseApplication
 from gunicorn.six import iteritems
@@ -23,8 +24,22 @@ from gunicorn.six import iteritems
 from bentoml import config
 from bentoml.archive import load
 from bentoml.server import BentoAPIServer
+from bentoml.server.bento_api_server import Router
 from bentoml.server.utils import get_bento_recommend_gunicorn_worker_count
 from bentoml.utils.usage_stats import track_server
+from gunicorn import util
+from flask import Response
+from prometheus_client import generate_latest, CollectorRegistry, multiprocess, CONTENT_TYPE_LATEST
+
+
+class GunicornRouter(Router):
+
+    @classmethod
+    def metrics_view_func(cls):
+        registry = CollectorRegistry()
+        multiprocess.MultiProcessCollector(registry)
+        data = generate_latest(registry)
+        return Response(data, mimetype=CONTENT_TYPE_LATEST)
 
 
 class GunicornBentoServer(BaseApplication):  # pylint: disable=abstract-method
@@ -60,9 +75,36 @@ class GunicornBentoServer(BaseApplication):  # pylint: disable=abstract-method
             "bind": "%s:%s" % ("0.0.0.0", self.port),
             "timeout": self.timeout,
         }
+
         super(GunicornBentoServer, self).__init__()
 
+    def get_config_from_module_name(self, module_name):
+        return vars(util.import_module(module_name))
+
+    def load_config_from_module_name(self, module_name):
+        """
+        Loads the configuration file: the file is a python file, otherwise raise an RuntimeError
+        Exception or stop the process if the configuration file contains a syntax error.
+        """
+
+        cfg = self.get_config_from_module_name(module_name)
+
+        for k, v in cfg.items():
+            # Ignore unknown names
+            if k not in self.cfg.settings:
+                continue
+            try:
+                self.cfg.set(k.lower(), v)
+            except:
+                print("Invalid value for %s: %s\n" % (k, v), file=sys.stderr)
+                sys.stderr.flush()
+                raise
+
+        return cfg
+
     def load_config(self):
+        self.load_config_from_module_name('bentoml.server.gunicorn_config')
+
         gunicorn_config = dict(
             [
                 (key, value)
@@ -75,7 +117,7 @@ class GunicornBentoServer(BaseApplication):  # pylint: disable=abstract-method
 
     def load(self):
         bento_service = load(self.bento_archive_path)
-        api_server = BentoAPIServer(bento_service, port=self.port)
+        api_server = BentoAPIServer(bento_service, router=GunicornRouter(), port=self.port)
         return api_server.app
 
     def run(self):
