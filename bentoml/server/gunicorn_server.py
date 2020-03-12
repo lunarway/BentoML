@@ -19,7 +19,7 @@ from __future__ import print_function
 import sys
 
 from gunicorn.app.base import BaseApplication
-from gunicorn.six import iteritems
+from six import iteritems
 
 from bentoml import config
 from bentoml.archive import load
